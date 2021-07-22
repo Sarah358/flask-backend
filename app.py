@@ -1,6 +1,7 @@
 from flask import Flask,request,jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
+import sqlite3
 import os
 
 # init app
@@ -27,8 +28,8 @@ ma = Marshmallow(app)
 class User(db.Model):
     id = db.Column(db.Integer,primary_key = True)
     name = db.Column(db.String(100))
-    email = db.Column(db.String(100))
-    password = db.Column(db.String(6))
+    email = db.Column(db.String(100),unique = True)
+    password = db.Column(db.String(6),unique = True)
 
 
 # constructor
@@ -47,23 +48,43 @@ class UserSchema(ma.Schema):
 # users_schema = UserSchema(many = True, strict = True)
 
 # create a user
-@app.route('/user',methods= ['POST'])
+@app.route('/users',methods= ['POST'])
 def add_user():
     name = request.json['name']
     email = request.json['email']
     password = request.json['password']
 
-    new_user = User(name,email,password)
-    db.session.add(new_user)
-    db.session.commit()
+    conn = sqlite3.connect('db.sqlite')
+    conn_db = conn.cursor()
+    conn_db.execute("SELECT * FROM user where email = ? OR password = ?;",(email,password))
+    record = conn_db.fetchall()
+    if(len(record) == 0):
+        new_user = User(name,email,password)
+        db.session.add(new_user)
+        db.session.commit()
 
-    return jsonify(new_user)
+        response ='User account created'
+        return response
+    else:
+        response = "User details already exists"
+        return response
+
 
 # get users
-app.route('/users',methods = ['GET'])
+@app.route('/users',methods = ['GET'])
 def get_user():
-    all_users = User.query.all()
-    return jsonify(all_users)
+    users = User.query.all()
+    output = []
+    for user in users:
+        user_data = {}
+        user_data['id'] = user.id
+        user_data['name'] = user.name
+        user_data['email'] = user.email
+        user_data['password'] = user.password
+        output.append(user_data)
+
+    return jsonify({"users":output})
+
 
 # run server
 if __name__ == '__main__':
