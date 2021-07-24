@@ -1,16 +1,38 @@
 from flask import Flask,request,jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_marshmallow import Marshmallow
+# from flask_marshmallow import Marshmallow
 import sqlite3
+# from api.utils import generate_sitemap,APIException
+from flask_jwt_extended import create_access_token
+from flask_jwt_extended import get_jwt_identity
+from flask_jwt_extended import jwt_required
+from flask_jwt_extended import JWTManager
 import os
 
 # init app
 app = Flask(__name__)
 
-# @app.route('/', methods= ['GET'])
-# def get():
-#     return jsonify ({"msg": "Hello World"})
+# Setup the Flask-JWT-Extended extension
+app.config["JWT_SECRET_KEY"] = os.environ.get('JWT_SECRET') # Change this!
+jwt = JWTManager(app)
+
+# access token
+# Create a route to authenticate your users and return JWTs. The
+# create_access_token() function is used to actually generate the JWT.
+@app.route("/token", methods=["POST"])
+def create_token():
+    name = request.json.get("name", None)
+    password = request.json.get("password", None)
+    if name != "test" or password != "test":
+        return jsonify({"msg": "Bad name or password"}), 401
+
+    access_token = create_access_token(identity=name)
+    return jsonify(access_token=access_token)
     
+
+
+
+
 # setting sqlalchemy db uri
 basedir = os.path.abspath(os.path.dirname(__file__))
 
@@ -22,17 +44,17 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
 # init marshmallow
-ma = Marshmallow(app)
+# ma = Marshmallow(app)
 
 # user model
 class User(db.Model):
     id = db.Column(db.Integer,primary_key = True)
     name = db.Column(db.String(100))
     email = db.Column(db.String(100),unique = True)
-    password = db.Column(db.String(6),unique = True)
+    password = db.Column(db.String(20),unique = True)
 
 
-# constructor
+    # constructor
     def __init__(self,name,email,password):
         self.name = name
         self.email = email
@@ -56,7 +78,7 @@ def add_user():
 
     conn = sqlite3.connect('db.sqlite')
     conn_db = conn.cursor()
-    conn_db.execute("SELECT * FROM user where email = ? OR password = ?;",(email,password))
+    conn_db.execute("SELECT * FROM user where email = ? AND password = ?;",(email,password))
     record = conn_db.fetchall()
     if(len(record) == 0):
         new_user = User(name,email,password)
